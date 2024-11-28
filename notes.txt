@@ -1,0 +1,5 @@
+- issue with restarting bot
+- json duplicates
+- accidents per hour formatting
+- remove accidents by severity
+- fix frequent locations stat

@@ -20,13 +20,13 @@ MAP_ACCESS_TOKEN = os.getenv("MAP_ACCESS_TOKEN")
 # Track posted incidents to avoid duplicates
 posted_incidents = set()
 
-def load_data_from_file(filename="TrafficIncidentBot/previous_data.json"):
+def load_data_from_file(filename="previous_data.json"):
     if os.path.exists(filename):
         with open(filename, "r") as file:
             return json.load(file)
     return []
 
-def save_data_to_file(data, filename="TrafficIncidentBot/previous_data.json"):
+def save_data_to_file(data, filename="previous_data.json"):
     with open(filename, "w") as file:
         json.dump(data, file, indent=4)
 
@@ -41,6 +41,7 @@ async def summarize_data(data):
         f"- Details: {data.get('Details', 'No additional details available')}\n"
         "Make it concise, engaging, and include related emojis."
     )
+
     response = client_gpt.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
@@ -50,17 +51,33 @@ async def summarize_data(data):
         max_tokens=50,
         temperature=0.7
     )
+    # Return only the summarized content, without printing any debug output
     return response.choices[0].message.content
 
 async def post_to_discord(channel_id, message, image_path=None):
+    """
+    Post a message to Discord, optionally with an image attachment.
+
+    Parameters:
+        channel_id (int): ID of the Discord channel.
+        message (str): The message to post.
+        image_path (str): Path to the image file to attach.
+
+    Returns:
+        None
+    """
     channel = client.get_channel(int(channel_id))
     if channel:
         if image_path and os.path.exists(image_path):
+            # Attach the image
             with open(image_path, 'rb') as image_file:
                 file = discord.File(image_file)
                 await channel.send(content=message, file=file)
         else:
+            # Post only the message if no image is available
             await channel.send(message)
+    else:
+        print(f"Could not find the specified channel with ID {channel_id}.")
 
 @client.event
 async def on_ready():
@@ -69,32 +86,47 @@ async def on_ready():
 
 async def traffic_monitor():
     global posted_incidents
-    previous_data = {}
-    all_previous_data = load_data_from_file()
+    all_previous_data = load_data_from_file()  # Load existing data from file
 
     while True:
         try:
+            print("Fetching merged data...")
             current_data = get_merged_data()
-            if current_data:
-                incident_id = (
-                    current_data.get("Incident No.") or
-                    f"{current_data.get('Time')}-{current_data.get('Location')}"
-                )
-                if incident_id not in posted_incidents:
-                    lon = current_data.get("Longitude")
-                    lat = current_data.get("Latitude")
-                    image_path = 'TrafficIncidentBot/map.png'
-                    save_map_image(lon, lat, MAP_ACCESS_TOKEN, image_path)
+            print(f"Current data: {current_data}")
 
-                    summary = await summarize_data(current_data)
-                    await post_to_discord(DISCORD_CHANNEL_ID, summary, image_path)
+            # Generate a unique identifier for the incident
+            incident_id = (
+                current_data.get("Incident No.") or
+                f"{current_data.get('Time')}-{current_data.get('Location')}"
+            )
 
-                    posted_incidents.add(incident_id)
-                    previous_data = current_data
-                    save_data_to_file(all_previous_data)
-            await asyncio.sleep(30)
+            if current_data and incident_id not in posted_incidents:
+                print("New incident detected. Preparing to post...")
+
+                # Generate the map image
+                lon = current_data.get("Longitude")
+                lat = current_data.get("Latitude")
+                image_path = 'map.png'
+                save_map_image(lon, lat, MAP_ACCESS_TOKEN, image_path)
+
+                # Summarize the data
+                summary = await summarize_data(current_data)
+                print(f"Summary: {summary}")
+
+                # Post to Discord
+                await post_to_discord(DISCORD_CHANNEL_ID, summary, image_path)
+
+                # Mark as posted and update the file
+                posted_incidents.add(incident_id)
+                all_previous_data.append(current_data)  # Add new incident to the list
+                save_data_to_file(all_previous_data)  # Save updated data to file
+                print(f"Data saved to previous_data.json: {current_data}")
+            else:
+                print("No new data or duplicate incident.")
         except Exception as e:
             print(f"Error: {e}")
+        await asyncio.sleep(30)
+
 
 if __name__ == "__main__":
     client.run(DISCORD_TOKEN)
