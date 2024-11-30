@@ -62,7 +62,6 @@ def update_analytics_from_file():
                        (incident.get("Time") and incident["Time"] > analytics_data["last_incident_time"]):
                         analytics_data["last_incident_time"] = incident.get("Time")
 
-                # Update GUI labels
                 update_analytics_display()
     except Exception as e:
         print(f"Error reading analytics: {e}")
@@ -121,8 +120,15 @@ def update_analytics_display():
         default="N/A"
     )
     location_label.config(text=f"Most Frequent Location: {most_frequent_location}")
-    per_hour_text = ", ".join([f'{hour}: {count}' for hour, count in analytics_data['accidents_per_hour'].items()]) or "None"
-    per_hour_label.config(text=f"Accidents per Hour: {per_hour_text}")
+    
+    # Calculate the daily average of accidents per hour
+    total_hours = len(analytics_data["accidents_per_hour"])
+    total_accidents = sum(analytics_data["accidents_per_hour"].values())
+    average_per_hour = total_accidents / total_hours if total_hours > 0 else 0
+    
+    # Display only the average accidents per hour
+    per_hour_label.config(text=f"Average Accidents per Hour: {average_per_hour:.2f}")
+    
     severity_label.config(text=f"Accidents by Severity: None")  # Can be updated if severity data is available
 
 # Update the status label
@@ -202,11 +208,12 @@ last_time_label.pack(anchor="w")
 location_label = tk.Label(analytics_frame, text="Most Frequent Location: None", font=("Arial", 12), bg="#F5F5F5", fg="#555")
 location_label.pack(anchor="w")
 
-per_hour_label = tk.Label(analytics_frame, text="Accidents per Hour: None", font=("Arial", 12), bg="#F5F5F5", fg="#555")
+per_hour_label = tk.Label(analytics_frame, text="Average Accidents per Hour: 0.00", font=("Arial", 12), bg="#F5F5F5", fg="#555")
 per_hour_label.pack(anchor="w")
 
 severity_label = tk.Label(analytics_frame, text="Accidents by Severity: None", font=("Arial", 12), bg="#F5F5F5", fg="#555")
 severity_label.pack(anchor="w")
+
 
 # Map Label (with stretch and aspect ratio lock)
 map_label = tk.Label(root, bg="#F5F5F5", width=800, height=400)
