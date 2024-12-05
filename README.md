@@ -89,4 +89,4 @@ This project combines automation, real-time data processing, and AI-powered text
 📜 License
 Feel free to use and enhance the project for personal or educational purposes. Contributions are welcome! 😊
 
-Made with ❤️ by a dedicated developer, leveraging Python, OpenAI, and Discord APIs. 🚀
+Made with ❤️ by Duffy Adams, leveraging Python, OpenAI, and Discord APIs. 🚀
