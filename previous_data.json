@@ -1,19 +1,30 @@
 [
     {
         "Details": [
-            "TOYT WILL CALL HIS OWN 1185",
-            "GRY TOYT RAV4 VS WHI MINI VAN",
-            "ALL VEHS ON RHS",
-            "2 VEH TC"
+            "OTURNED VEH"
         ],
-        "No.": "0403",
-        "Time": "11:50 AM",
-        "Type": "Trfc Collision-Unkn Inj",
-        "Location": "I805 N / Home So",
-        "Location Desc.": "",
-        "Latitude": 32.72775,
-        "Longitude": -117.104585,
-        "Neighborhood": "Hollywood Park",
-        "City": "San Diego"
+        "No.": "0569",
+        "Time": "2:59 PM",
+        "Type": "Trfc Collision-1141 Enrt",
+        "Location": "I8 W / Sr67 Eo (magnolia)",
+        "Location Desc.": "I8 W SR67 EO (MAGNOLIA)",
+        "Latitude": 32.803164,
+        "Longitude": -116.95579,
+        "Neighborhood": "N/A",
+        "City": "El Cajon"
+    },
+    {
+        "Details": [
+            "VISUAL FRM EB SIDE- START FIRE - VEH ON ITS ROOF"
+        ],
+        "No.": "0570",
+        "Time": "3:00 PM",
+        "Type": "Trfc Collision-1141 Enrt",
+        "Location": "I8 W / Mollison Wo",
+        "Location Desc.": "JWO",
+        "Latitude": 32.803163,
+        "Longitude": -116.954256,
+        "Neighborhood": "N/A",
+        "City": "El Cajon"
     }
 ]

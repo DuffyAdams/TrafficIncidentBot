@@ -8,6 +8,8 @@ from datetime import datetime
 import threading
 import asyncio
 import main  # Import the main.py module
+import sys
+import io
 
 bot_thread = None
 bot_loop = None
@@ -108,20 +110,34 @@ def run_bot(loop):
 
 def stop_bot():
     global bot_running, bot_loop, bot_thread
+
     if not bot_running:
         update_status("Bot is not running.")
         return
 
     update_status("Stopping bot...")
     bot_running = False
-    if bot_loop and bot_thread is not None:
-        asyncio.run_coroutine_threadsafe(main.client.close(), bot_loop)
-        bot_thread.join()
-        bot_thread = None
-        bot_loop = None
+
+    # Close the Discord client gracefully
+    future = asyncio.run_coroutine_threadsafe(main.client.close(), bot_loop)
+    try:
+        # Wait for the client.close() coroutine to finish
+        future.result(timeout=5)
+    except asyncio.TimeoutError:
+        print("Timed out waiting for client to close.")
+
+    # Stop the event loop
+    bot_loop.call_soon_threadsafe(bot_loop.stop)
+    
+    # Join the bot thread to ensure it has finished
+    bot_thread.join()
+
+    # Now that everything is closed and joined, clean up references
+    bot_thread = None
+    bot_loop = None
 
     update_status("Bot stopped.")
-
+    
 def update_analytics_display():
     total_label.config(text=f"Total Accidents: {analytics_data['total_accidents']}")
     last_incident = analytics_data['last_incident_time'] or "N/A"
@@ -190,6 +206,33 @@ def clear_data():
     posted_message_label.config(text="")
     update_status("Data cleared and stats reset.")
 
+# --- Redirecting stdout to Text widget ---
+class TextRedirector(io.StringIO):
+    def __init__(self, text_widget):
+        super().__init__()
+        self.text_widget = text_widget
+        self.buffer = ""
+
+    def write(self, message):
+        self.buffer += message
+
+    def flush(self):
+        pass
+
+def update_terminal():
+    """
+    Periodically checks if there's new output in our StringIO buffer
+    and writes it into the Text widget.
+    """
+    new_content = stdout_redirector.buffer
+    if new_content:
+        terminal_text.configure(state='normal')
+        terminal_text.insert(tk.END, new_content)
+        terminal_text.configure(state='disabled')
+        terminal_text.see(tk.END)
+        stdout_redirector.buffer = ""
+    root.after(1000, update_terminal)
+
 # Create the main window
 root = tk.Tk()
 root.title("Traffic Incident Bot")
@@ -215,7 +258,7 @@ stop_button = ttk.Button(button_frame, text="Stop Bot", command=stop_bot)
 stop_button.grid(row=0, column=1, padx=10)
 
 image_button = ttk.Button(button_frame, text="Show Latest Image", command=show_latest_image)
-image_button.grid(row=1, column=0, padx=10, pady=10)
+image_button.grid(row=1, column=0, padx=0, pady=0)
 
 clear_button = ttk.Button(button_frame, text="Clear Data", command=clear_data)
 clear_button.grid(row=1, column=1, padx=10, pady=10)
@@ -252,13 +295,28 @@ posted_message_label = tk.Message(
 posted_message_label.pack(pady=5, fill='x', padx=10)
 
 # Map Label
-map_label = tk.Label(root, bg="#F5F5F5", width=800, height=400)
+map_label = tk.Label(root, bg="#F5F5F5", width=800, height=200)
 map_label.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+# Terminal Frame
+terminal_frame = tk.Frame(root, bg="#F5F5F5")
+terminal_frame.pack(fill='both', expand=True, padx=10, pady=10)
+
+terminal_label = tk.Label(terminal_frame, text="Terminal Output:", font=("Arial", 14), bg="#F5F5F5", fg="#333")
+terminal_label.pack(anchor='w')
+
+terminal_text = tk.Text(terminal_frame, wrap='word', state='disabled', font=("Consolas", 10))
+terminal_text.pack(fill='both', expand=True)
+
+# Redirect stdout
+stdout_redirector = TextRedirector(terminal_text)
+sys.stdout = stdout_redirector
 
 root.bind("<Configure>", lambda event: show_latest_image())
 
 update_analytics_from_file()
 monitor_analytics_file()
 update_posted_message()
+update_terminal()
 
 root.mainloop()
