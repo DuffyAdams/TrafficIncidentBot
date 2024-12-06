@@ -1,4 +1,6 @@
 import os
+import sys
+import io
 import json
 import tkinter as tk
 from tkinter import ttk
@@ -8,9 +10,8 @@ from datetime import datetime
 import threading
 import asyncio
 import main  # Import the main.py module
-import sys
-import io
 
+# --- Global Variables ---
 bot_thread = None
 bot_loop = None
 bot_running = False
@@ -23,7 +24,12 @@ analytics_data = {
     "last_incident_time": None,
 }
 
+# --- Functions for Parsing and Processing Incidents ---
 def parse_incident_time(time_str):
+    """
+    Attempts to parse the given time string into a datetime object using multiple formats.
+    Returns a datetime object if successful, otherwise None.
+    """
     formats = ["%Y-%m-%d %H:%M:%S", "%I:%M %p"]
     for fmt in formats:
         try:
@@ -34,6 +40,10 @@ def parse_incident_time(time_str):
     return None
 
 def process_incident_for_analytics(incident):
+    """
+    Updates analytics_data based on a single incident.
+    Extracts time and location information and increments corresponding counts.
+    """
     time_str = incident.get("Time")
     location = incident.get("Location")
 
@@ -42,13 +52,20 @@ def process_incident_for_analytics(incident):
         if time_obj:
             hour = time_obj.hour
             analytics_data["accidents_per_hour"][hour] += 1
+
+            # Update last incident time if this one is newer
             if not analytics_data["last_incident_time"] or time_str > analytics_data["last_incident_time"]:
                 analytics_data["last_incident_time"] = time_str
 
     if location:
         analytics_data["most_frequent_location"][location] += 1
 
+# --- Analytics Handling ---
 def update_analytics_from_file():
+    """
+    Reads previous_data.json file and updates the analytics data.
+    If file doesn't exist or is empty, it resets the analytics.
+    """
     filename = "previous_data.json"
     if not os.path.exists(filename):
         # If file doesn't exist or was just cleared, reset analytics
@@ -66,6 +83,7 @@ def update_analytics_from_file():
         with open(filename, "r") as file:
             data = json.load(file)
 
+        # Reset analytics and re-calculate
         analytics_data.update({
             "total_accidents": len(data),
             "accidents_per_hour": defaultdict(int),
@@ -82,9 +100,32 @@ def update_analytics_from_file():
         print(f"Error reading analytics: {e}")
 
 def monitor_analytics_file():
+    """
+    Periodically updates analytics data from the file.
+    """
     update_analytics_from_file()
     root.after(5000, monitor_analytics_file)
 
+def update_analytics_display():
+    """
+    Updates the labels in the GUI to reflect the current analytics data.
+    """
+    total_label.config(text=f"Total Accidents: {analytics_data['total_accidents']}")
+    last_incident = analytics_data['last_incident_time'] or "N/A"
+    last_time_label.config(text=f"Last Incident Time: {last_incident}")
+
+    freq_locations = analytics_data["most_frequent_location"]
+    most_frequent_location = max(freq_locations, key=freq_locations.get, default="N/A")
+    location_label.config(text=f"Most Frequent Location: {most_frequent_location}")
+
+    total_hours = len(analytics_data["accidents_per_hour"])
+    total_accidents = sum(analytics_data["accidents_per_hour"].values())
+    average_per_hour = total_accidents / total_hours if total_hours > 0 else 0.0
+    per_hour_label.config(text=f"Average Accidents per Hour: {average_per_hour:.2f}")
+
+    severity_label.config(text="Accidents by Severity: None")
+
+# --- Bot Control Functions ---
 def start_bot():
     global bot_thread, bot_loop, bot_running
     if bot_running:
@@ -99,6 +140,9 @@ def start_bot():
     update_status("Bot started.")
 
 def run_bot(loop):
+    """
+    Runs the Discord bot in a separate thread.
+    """
     asyncio.set_event_loop(loop)
     try:
         loop.run_until_complete(main.client.start(main.DISCORD_TOKEN))
@@ -121,7 +165,6 @@ def stop_bot():
     # Close the Discord client gracefully
     future = asyncio.run_coroutine_threadsafe(main.client.close(), bot_loop)
     try:
-        # Wait for the client.close() coroutine to finish
         future.result(timeout=5)
     except asyncio.TimeoutError:
         print("Timed out waiting for client to close.")
@@ -132,32 +175,22 @@ def stop_bot():
     # Join the bot thread to ensure it has finished
     bot_thread.join()
 
-    # Now that everything is closed and joined, clean up references
     bot_thread = None
     bot_loop = None
-
     update_status("Bot stopped.")
-    
-def update_analytics_display():
-    total_label.config(text=f"Total Accidents: {analytics_data['total_accidents']}")
-    last_incident = analytics_data['last_incident_time'] or "N/A"
-    last_time_label.config(text=f"Last Incident Time: {last_incident}")
-
-    freq_locations = analytics_data["most_frequent_location"]
-    most_frequent_location = max(freq_locations, key=freq_locations.get, default="N/A")
-    location_label.config(text=f"Most Frequent Location: {most_frequent_location}")
-
-    total_hours = len(analytics_data["accidents_per_hour"])
-    total_accidents = sum(analytics_data["accidents_per_hour"].values())
-    average_per_hour = total_accidents / total_hours if total_hours > 0 else 0.0
-    per_hour_label.config(text=f"Average Accidents per Hour: {average_per_hour:.2f}")
-
-    severity_label.config(text="Accidents by Severity: None")
 
 def update_status(message):
+    """
+    Updates the status label with the given message.
+    """
     status_label.config(text=message)
 
+# --- Image Display ---
 def show_latest_image():
+    """
+    Displays the latest map image (map.png) in the map_label widget.
+    Automatically resizes the image to fit the current widget size.
+    """
     img_path = "map.png"
     if not os.path.exists(img_path):
         update_status("No map image found.")
@@ -189,25 +222,33 @@ def show_latest_image():
         update_status(f"Error loading image: {e}")
         map_label.config(image='')
 
+# --- Posted Message Update ---
 def update_posted_message():
+    """
+    Periodically checks the main.latest_posted_message and updates the label.
+    """
     if main.latest_posted_message:
         posted_message_label.config(text=main.latest_posted_message)
     root.after(5000, update_posted_message)
 
+# --- Clear Data ---
 def clear_data():
     """
     Clears the previous_data.json file, resets analytics and clears the posted message.
     """
     main.clear_json_file()  # Clears the file content in main
-    # Reset the analytics data
+    # Reset analytics
     update_analytics_from_file()
     # Clear posted message
     main.latest_posted_message = None
     posted_message_label.config(text="")
     update_status("Data cleared and stats reset.")
 
-# --- Redirecting stdout to Text widget ---
+# --- Terminal Output Redirection ---
 class TextRedirector(io.StringIO):
+    """
+    Redirects stdout to a text widget. Buffers output and flushes periodically.
+    """
     def __init__(self, text_widget):
         super().__init__()
         self.text_widget = text_widget
@@ -233,18 +274,26 @@ def update_terminal():
         stdout_redirector.buffer = ""
     root.after(1000, update_terminal)
 
-# Create the main window
+# --- GUI Setup ---
 root = tk.Tk()
 root.title("Traffic Incident Bot")
 root.geometry("800x700")
 root.configure(bg="#F5F5F5")
 
-# Title
-title_label = tk.Label(root, text="Traffic Incident Bot", font=("Arial", 20, "bold"), bg="#F5F5F5", fg="#333")
+# Title Label
+title_label = tk.Label(
+    root, text="Traffic Incident Bot",
+    font=("Arial", 20, "bold"),
+    bg="#F5F5F5", fg="#333"
+)
 title_label.pack(pady=10)
 
 # Status Label
-status_label = tk.Label(root, text="Status: Not running", font=("Arial", 14), bg="#F5F5F5", fg="#555")
+status_label = tk.Label(
+    root, text="Status: Not running",
+    font=("Arial", 14),
+    bg="#F5F5F5", fg="#555"
+)
 status_label.pack(pady=5)
 
 # Button Frame
@@ -282,7 +331,7 @@ per_hour_label.pack(anchor="w")
 severity_label = tk.Label(analytics_frame, text="Accidents by Severity: None", font=("Arial", 12), bg="#F5F5F5", fg="#555")
 severity_label.pack(anchor="w")
 
-# Posted message widget
+# Posted Message Label
 posted_message_label = tk.Message(
     root,
     text="",
@@ -302,7 +351,11 @@ map_label.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 terminal_frame = tk.Frame(root, bg="#F5F5F5")
 terminal_frame.pack(fill='both', expand=True, padx=10, pady=10)
 
-terminal_label = tk.Label(terminal_frame, text="Terminal Output:", font=("Arial", 14), bg="#F5F5F5", fg="#333")
+terminal_label = tk.Label(
+    terminal_frame, text="Terminal Output:",
+    font=("Arial", 14),
+    bg="#F5F5F5", fg="#333"
+)
 terminal_label.pack(anchor='w')
 
 terminal_text = tk.Text(terminal_frame, wrap='word', state='disabled', font=("Consolas", 10))
@@ -312,6 +365,7 @@ terminal_text.pack(fill='both', expand=True)
 stdout_redirector = TextRedirector(terminal_text)
 sys.stdout = stdout_redirector
 
+# Bind events and start periodic updates
 root.bind("<Configure>", lambda event: show_latest_image())
 
 update_analytics_from_file()
