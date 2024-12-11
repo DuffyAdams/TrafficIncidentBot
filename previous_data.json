@@ -26,5 +26,19 @@
         "Longitude": -116.954256,
         "Neighborhood": "N/A",
         "City": "El Cajon"
+    },
+    {
+        "Details": [
+            "PER STAM 1179 / MC VS GROUND / BROKEN ANKLE"
+        ],
+        "No.": "0759",
+        "Time": "5:11 PM",
+        "Type": "Trfc Collision-1141 Enrt",
+        "Location": "16232 Sequan Truck Trl",
+        "Location Desc.": "",
+        "Latitude": 32.79617,
+        "Longitude": -116.798003,
+        "Neighborhood": "N/A",
+        "City": "N/A"
     }
 ]
